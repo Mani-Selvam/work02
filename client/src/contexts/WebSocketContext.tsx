@@ -43,7 +43,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         let wsUrl: string;
         const externalApiUrl = import.meta.env.VITE_API_URL;
 
-        if (externalApiUrl) {
+        // Always use window.location for WebSocket in Replit environment
+        // to avoid mixed content issues
+        const isLocalhost = externalApiUrl && externalApiUrl.includes("localhost");
+        if (externalApiUrl && !isLocalhost) {
             wsUrl = externalApiUrl.replace(/^https?/, "wss") + "/ws";
         } else {
             const protocol =

@@ -34,9 +34,6 @@ export default defineConfig(({ mode }) => {
             ...(process.env.NODE_ENV !== "production" &&
             process.env.REPL_ID !== undefined
                 ? [
-                      import("@replit/vite-plugin-cartographer").then((m) =>
-                          m.cartographer()
-                      ),
                       import("@replit/vite-plugin-dev-banner").then((m) =>
                           m.devBanner()
                       ),
