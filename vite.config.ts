@@ -1,33 +1,27 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, process.cwd(), "VITE_");
     const isProduction = mode === "production";
-    const apiUrl =
-        env.VITE_API_URL || process.env.VITE_API_URL || "http://localhost:3000";
-    const isExternalApi = apiUrl !== "http://localhost:3000";
 
     const proxyConfig: Record<string, any> = {};
 
     if (!isProduction) {
         proxyConfig["/api"] = {
-            target: apiUrl,
+            target: "http://localhost:3000",
             changeOrigin: true,
             secure: false,
         };
-        proxyConfig["/ws"] = isExternalApi
-            ? { target: apiUrl, changeOrigin: true, secure: false }
-            : { target: "ws://localhost:3000", ws: true };
+        proxyConfig["/ws"] = { 
+            target: "ws://localhost:3000", 
+            ws: true 
+        };
     }
 
     return {
         base: "./",
-        define: {
-            "import.meta.env.VITE_API_URL": JSON.stringify(apiUrl),
-        },
         plugins: [
             react(),
             runtimeErrorOverlay(),
