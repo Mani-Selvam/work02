@@ -46,6 +46,7 @@ import {
     Ban,
     CheckCircle2,
     UserCircle,
+    Crown,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -318,6 +319,31 @@ export default function Users() {
         },
     });
 
+    const promoteToTeamLeaderMutation = useMutation({
+        mutationFn: async ({ userId }: { userId: number }) => {
+            return await apiRequest(
+                `${API_BASE_URL}/api/users/${userId}/role`,
+                "PATCH",
+                { role: "team_leader" }
+            );
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/users?includeDeleted=true"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/my-company"] });
+            toast({
+                title: "User promoted successfully",
+                description: "The user has been promoted to Team Leader.",
+            });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Failed to promote user",
+                description: error.message || "Please try again.",
+                variant: "destructive",
+            });
+        },
+    });
+
     const copyToClipboard = async (text: string, field: string) => {
         try {
             if (navigator.clipboard && window.isSecureContext) {
@@ -554,6 +580,13 @@ export default function Users() {
                                                                     data-testid={`menu-view-details-${user.id}`}>
                                                                     <Eye className="h-4 w-4 mr-2" />
                                                                     View Details
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    onClick={() => promoteToTeamLeaderMutation.mutate({ userId: user.id })}
+                                                                    disabled={promoteToTeamLeaderMutation.isPending}
+                                                                    data-testid={`menu-promote-${user.id}`}>
+                                                                    <Crown className="h-4 w-4 mr-2" />
+                                                                    Promote to Team Leader
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuSeparator />
                                                             </>
@@ -1276,7 +1309,7 @@ export default function Users() {
             <Dialog
                 open={userDetailsDialogOpen}
                 onOpenChange={setUserDetailsDialogOpen}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md select-none">
                     <DialogHeader>
                         <DialogTitle>User Details</DialogTitle>
                         <DialogDescription>
