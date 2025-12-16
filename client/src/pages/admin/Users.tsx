@@ -47,6 +47,8 @@ import {
     CheckCircle2,
     UserCircle,
     Crown,
+    UserMinus,
+    Trash2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -344,6 +346,57 @@ export default function Users() {
         },
     });
 
+    const demoteToMemberMutation = useMutation({
+        mutationFn: async ({ userId }: { userId: number }) => {
+            return await apiRequest(
+                `${API_BASE_URL}/api/users/${userId}/role`,
+                "PATCH",
+                { role: "company_member" }
+            );
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/users?includeDeleted=true"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/team-assignments"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/my-company"] });
+            toast({
+                title: "User demoted successfully",
+                description: "The user has been demoted to Company Member.",
+            });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Failed to demote user",
+                description: error.message || "Please try again.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const permanentlyDeleteUserMutation = useMutation({
+        mutationFn: async ({ userId }: { userId: number }) => {
+            return await apiRequest(
+                `${API_BASE_URL}/api/users/${userId}/permanent`,
+                "DELETE"
+            );
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/users?includeDeleted=true"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/team-assignments"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/my-company"] });
+            toast({
+                title: "User permanently deleted",
+                description: "The user and all their data have been permanently removed.",
+            });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Failed to delete user",
+                description: error.message || "Please try again.",
+                variant: "destructive",
+            });
+        },
+    });
+
     const copyToClipboard = async (text: string, field: string) => {
         try {
             if (navigator.clipboard && window.isSecureContext) {
@@ -562,6 +615,13 @@ export default function Users() {
                                                                     <UserCircle className="h-4 w-4 mr-2" />
                                                                     View Details
                                                                 </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    onClick={() => demoteToMemberMutation.mutate({ userId: user.id })}
+                                                                    disabled={demoteToMemberMutation.isPending}
+                                                                    data-testid={`menu-demote-${user.id}`}>
+                                                                    <UserMinus className="h-4 w-4 mr-2" />
+                                                                    Revoke Team Leader
+                                                                </DropdownMenuItem>
                                                                 <DropdownMenuSeparator />
                                                             </>
                                                         )}
@@ -728,25 +788,43 @@ export default function Users() {
                                                 className="text-xs">
                                                 Suspended
                                             </Badge>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 text-xs"
-                                                data-testid={`button-activate-user-${user.id}`}
-                                                onClick={() =>
-                                                    toggleUserStatusMutation.mutate(
-                                                        {
-                                                            userId: user.id,
-                                                            isActive: true,
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 text-xs"
+                                                    data-testid={`button-activate-user-${user.id}`}
+                                                    onClick={() =>
+                                                        toggleUserStatusMutation.mutate(
+                                                            {
+                                                                userId: user.id,
+                                                                isActive: true,
+                                                            }
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        toggleUserStatusMutation.isPending
+                                                    }>
+                                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                                    Activate
+                                                </Button>
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    className="h-7 text-xs"
+                                                    data-testid={`button-permanently-delete-user-${user.id}`}
+                                                    onClick={() => {
+                                                        if (confirm(`Are you sure you want to permanently delete ${user.displayName}? This action cannot be undone and will remove all their data.`)) {
+                                                            permanentlyDeleteUserMutation.mutate({ userId: user.id });
                                                         }
-                                                    )
-                                                }
-                                                disabled={
-                                                    toggleUserStatusMutation.isPending
-                                                }>
-                                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                                Activate
-                                            </Button>
+                                                    }}
+                                                    disabled={
+                                                        permanentlyDeleteUserMutation.isPending
+                                                    }>
+                                                    <Trash2 className="h-3 w-3 mr-1" />
+                                                    Delete
+                                                </Button>
+                                            </div>
                                         </div>
                                     </CardContent>
                                 </Card>

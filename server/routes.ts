@@ -1101,8 +1101,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             const { role } = req.body;
+            
+            // If demoting from team_leader, remove their team assignments
+            if (targetUser.role === "team_leader" && role === "company_member") {
+                await storage.removeAllTeamAssignmentsByLeader(parseInt(req.params.id));
+            }
+            
             await storage.updateUserRole(parseInt(req.params.id), role);
             res.json({ message: "Role updated successfully" });
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    // Permanently delete a user and all their data
+    app.delete("/api/users/:id/permanent", async (req, res, next) => {
+        try {
+            const requestingUserId = req.headers["x-user-id"];
+            if (!requestingUserId) {
+                return res
+                    .status(401)
+                    .json({ message: "Authentication required" });
+            }
+
+            const requestingUser = await storage.getUserById(
+                parseInt(requestingUserId as string)
+            );
+            if (
+                !requestingUser ||
+                (requestingUser.role !== "company_admin" &&
+                    requestingUser.role !== "super_admin")
+            ) {
+                return res
+                    .status(403)
+                    .json({ message: "Only admins can permanently delete users" });
+            }
+
+            const targetUser = await storage.getUserById(
+                parseInt(req.params.id)
+            );
+            if (!targetUser) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            // Company scoping: admins can only delete users in their company
+            if (
+                requestingUser.role !== "super_admin" &&
+                targetUser.companyId !== requestingUser.companyId
+            ) {
+                return res.status(403).json({ message: "Access denied" });
+            }
+
+            // Cannot delete company admins
+            if (targetUser.role === "company_admin") {
+                return res.status(403).json({ message: "Cannot delete company admins" });
+            }
+
+            // Delete all user data
+            await storage.deleteAllUserData(parseInt(req.params.id));
+            res.json({ message: "User permanently deleted" });
         } catch (error) {
             next(error);
         }

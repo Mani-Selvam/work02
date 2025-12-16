@@ -134,6 +134,7 @@ export interface IStorage {
     getAllUsers(includeDeleted?: boolean): Promise<User[]>;
     deleteUser(id: number): Promise<void>;
     softDeleteUser(id: number): Promise<void>;
+    deleteAllUserData(id: number): Promise<void>;
 
     // Task operations
     createTask(task: InsertTask): Promise<Task>;
@@ -450,6 +451,7 @@ export interface IStorage {
         assignment: InsertTeamAssignment
     ): Promise<TeamAssignment>;
     removeTeamAssignment(teamLeaderId: number, memberId: number): Promise<void>;
+    removeAllTeamAssignmentsByLeader(teamLeaderId: number): Promise<void>;
     getTeamMembersByLeader(teamLeaderId: number): Promise<User[]>;
     getTeamLeaderByMember(memberId: number): Promise<User | null>;
     getAllTeamAssignments(companyId: number): Promise<TeamAssignment[]>;
@@ -811,6 +813,97 @@ export class DbStorage implements IStorage {
                 deletedAt: new Date(),
             })
             .where(eq(users.id, id));
+    }
+
+    async deleteAllUserData(id: number): Promise<void> {
+        // Delete all user-related data from all tables in proper FK order
+        
+        // First: Nullify nullable references, delete non-nullable ones
+        await db.update(adminActivityLogs).set({ targetUserId: null }).where(eq(adminActivityLogs.targetUserId, id));
+        await db.delete(adminActivityLogs).where(eq(adminActivityLogs.performedBy, id));
+        await db.update(leaves).set({ approvedBy: null }).where(eq(leaves.approvedBy, id));
+        await db.update(correctionRequests).set({ reviewedBy: null }).where(eq(correctionRequests.reviewedBy, id));
+        
+        // Delete device tokens
+        await db.delete(deviceTokens).where(eq(deviceTokens.userId, id));
+        
+        // Delete rewards
+        await db.delete(rewards).where(eq(rewards.userId, id));
+        
+        // Delete attendance logs first (references attendanceRecords)
+        const userAttendanceRecords = await db.select({ id: attendanceRecords.id }).from(attendanceRecords).where(eq(attendanceRecords.userId, id));
+        for (const record of userAttendanceRecords) {
+            await db.delete(attendanceLogs).where(eq(attendanceLogs.attendanceId, record.id));
+        }
+        await db.delete(attendanceLogs).where(eq(attendanceLogs.performedBy, id));
+        
+        // Delete correction requests (must be after attendanceRecords dependency check)
+        await db.delete(correctionRequests).where(eq(correctionRequests.userId, id));
+        
+        // Delete attendance records
+        await db.delete(attendanceRecords).where(eq(attendanceRecords.userId, id));
+        
+        // Delete task time logs
+        await db.delete(taskTimeLogs).where(eq(taskTimeLogs.userId, id));
+        
+        // Delete tasks reports
+        await db.delete(tasksReports).where(eq(tasksReports.userId, id));
+        
+        // Delete leaves
+        await db.delete(leaves).where(eq(leaves.userId, id));
+        
+        // Delete archive reports
+        await db.delete(archiveReports).where(eq(archiveReports.userId, id));
+        
+        // Delete file uploads
+        await db.delete(fileUploads).where(eq(fileUploads.userId, id));
+        
+        // Delete ratings (both as rater and rated)
+        await db.delete(ratings).where(eq(ratings.userId, id));
+        await db.delete(ratings).where(eq(ratings.ratedBy, id));
+        
+        // Delete team assignments where user is either leader or member
+        await db.delete(teamAssignments).where(eq(teamAssignments.teamLeaderId, id));
+        await db.delete(teamAssignments).where(eq(teamAssignments.memberId, id));
+        
+        // Delete reports by this user
+        await db.delete(reports).where(eq(reports.userId, id));
+        
+        // Delete group message replies first (references groupMessages)
+        await db.delete(groupMessageReplies).where(eq(groupMessageReplies.senderId, id));
+        
+        // Delete group messages
+        await db.delete(groupMessages).where(eq(groupMessages.senderId, id));
+        
+        // Delete messages where user is either sender or receiver
+        await db.delete(messages).where(eq(messages.senderId, id));
+        await db.delete(messages).where(eq(messages.receiverId, id));
+        
+        // Delete feedbacks
+        await db.delete(feedbacks).where(eq(feedbacks.submittedBy, id));
+        
+        // Delete followups created by user
+        await db.delete(followups).where(eq(followups.createdBy, id));
+        
+        // Delete enquiries created by user
+        await db.delete(enquiries).where(eq(enquiries.createdBy, id));
+        
+        // Delete tasks - need to handle all task-related FKs first
+        // Get tasks assigned to this user to clean up their dependencies
+        const userTasks = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.assignedTo, id));
+        for (const task of userTasks) {
+            // Delete task time logs for this task (from any user)
+            await db.delete(taskTimeLogs).where(eq(taskTimeLogs.taskId, task.id));
+            // Nullify message references to this task
+            await db.update(messages).set({ relatedTaskId: null }).where(eq(messages.relatedTaskId, task.id));
+        }
+        
+        // Null out assignedBy references, then delete assigned tasks
+        await db.update(tasks).set({ assignedBy: null }).where(eq(tasks.assignedBy, id));
+        await db.delete(tasks).where(eq(tasks.assignedTo, id));
+        
+        // Finally delete the user
+        await db.delete(users).where(eq(users.id, id));
     }
 
     async createTask(task: InsertTask): Promise<Task> {
@@ -2576,6 +2669,18 @@ export class DbStorage implements IStorage {
                 and(
                     eq(teamAssignments.teamLeaderId, teamLeaderId),
                     eq(teamAssignments.memberId, memberId),
+                    sql`${teamAssignments.removedAt} IS NULL`
+                )
+            );
+    }
+
+    async removeAllTeamAssignmentsByLeader(teamLeaderId: number): Promise<void> {
+        await db
+            .update(teamAssignments)
+            .set({ removedAt: new Date() })
+            .where(
+                and(
+                    eq(teamAssignments.teamLeaderId, teamLeaderId),
                     sql`${teamAssignments.removedAt} IS NULL`
                 )
             );
