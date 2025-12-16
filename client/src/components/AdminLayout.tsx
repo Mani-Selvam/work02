@@ -115,7 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleLogout = async () => {
     await signOut();
-    window.location.href = "/";
+    window.location.href = "/worklogix/";
   };
 
   const SidebarContent = () => (

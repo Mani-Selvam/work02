@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
     }
 
     return {
-        base: "./",
+        base: "/worklogix/",
         plugins: [
             react(),
             runtimeErrorOverlay(),

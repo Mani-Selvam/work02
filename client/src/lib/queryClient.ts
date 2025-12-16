@@ -19,7 +19,7 @@ async function throwIfResNotOk(res: Response) {
                 const errorData = JSON.parse(text);
                 if (errorData.code === "USER_INACTIVE") {
                     localStorage.clear();
-                    window.location.href = "/Worklogix";
+                    window.location.href = "/worklogix/";
                     throw new Error(
                         "Your account has been disabled. You have been logged out."
                     );

@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const message = JSON.parse(event.data);
         if (message.type === 'USER_SUSPENDED' && message.userId === user.id) {
           localStorage.clear();
-          window.location.href = "/";
+          window.location.href = "/worklogix/";
         }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);

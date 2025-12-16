@@ -59,7 +59,7 @@ export function TeamLeaderSidebar() {
 
   const handleLogout = async () => {
     await signOut();
-    window.location.href = "/";
+    window.location.href = "/worklogix/";
   };
 
   return (
